@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Jarvis — Detección de Enojo mediante Voz</title>
+<meta name="description" content="Dispositivo de bajo costo basado en ESP32 que detecta enojo en la voz humana para prevenir la violencia doméstica. Proyecto de Clubes de Ciencias 2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #E3F6F5;
+    --card: #A7E0DB;
+    --accent: #5FB0C9;
+    --heading: #3E6D9C;
+    --text: #2A2F63;
+    --white: #ffffff;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Manrope', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    --radius-lg: 28px;
+    --radius-md: 18px;
+    --radius-sm: 10px;
+    --nav-h: 64px;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; scroll-padding-top: 24px; }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+    overflow-x:hidden;
+  }
+
+  h1,h2,h3{ font-family:var(--font-display); color:var(--heading); line-height:1.15; letter-spacing:-0.01em; }
+  a{ color:inherit; }
+  section{ padding: 64px 22px 20px; max-width: 640px; margin:0 auto; scroll-margin-top: 20px; }
+
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--heading);
+    opacity:0.75;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:2px;
+    background:var(--heading);
+    display:inline-block;
+  }
+
+  h2{ font-size: clamp(24px, 6vw, 30px); margin-bottom:14px; }
+  section > p.lead{ font-size:16px; max-width:52ch; }
+
+  /* ---------- TOP STATUS / QR HINT ---------- */
+  .top-strip{
+    background:var(--heading);
+    color:var(--bg);
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.08em;
+    padding: 7px 10px;
+    text-transform:uppercase;
+  }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;
+    padding: 40px 22px 30px;
+    max-width:640px;
+    margin:0 auto;
+    overflow:hidden;
+  }
+  .hero-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:var(--card);
+    color:var(--heading);
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:7px 12px;
+    border-radius:100px;
+    margin-bottom:20px;
+  }
+  .hero-badge .dot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--accent);
+    animation: blink 1.6s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  .hero h1{
+    font-size: clamp(30px, 9vw, 42px);
+    margin-bottom:8px;
+  }
+  .hero h1 .accent-line{
+    display:block;
+    color:var(--accent);
+    -webkit-text-stroke: 0.5px var(--heading);
+  }
+  .hero p.sub{
+    font-size:16.5px;
+    color:var(--text);
+    max-width:48ch;
+    margin: 14px 0 26px;
+  }
+
+  /* ---------- ENOJÓMETRO (signature widget) ---------- */
+  .enojometro{
+    background:var(--white);
+    border-radius:var(--radius-lg);
+    padding: 22px 20px 24px;
+    box-shadow: 0 18px 40px -22px rgba(42,47,99,0.35);
+    border:1px solid rgba(62,109,156,0.12);
+  }
+  .enojometro-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom: 4px;
+  }
+  .enojometro-title{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:15px;
+    color:var(--heading);
+  }
+  .enojometro-badge{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    padding:3px 8px;
+    border-radius:6px;
+    transition: background .25s, color .25s;
+  }
+  .enojometro-badge.neutral{ background:rgba(95,176,201,0.18); color:var(--heading); }
+  .enojometro-badge.alert{ background:var(--heading); color:var(--bg); }
+
+  .wave-wrap{
+    width:100%;
+    height:84px;
+    margin: 10px 0 6px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(167,224,219,0.35), rgba(167,224,219,0.08));
+    position:relative;
+  }
+  .wave-wrap svg{ width:100%; height:100%; display:block; }
+  .wave-path{ fill:none; stroke:var(--accent); stroke-width:2.4; stroke-linecap:round; transition: stroke .25s; }
+  .wave-path.alert{ stroke: var(--heading); }
+
+  .readout-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin: 10px 0 18px;
+    font-family:var(--font-mono);
+  }
+  .prob-value{
+    font-size: 30px;
+    font-weight:700;
+    color:var(--text);
+    transition:color .25s;
+  }
+  .prob-value.alert{ color:var(--heading); }
+  .prob-label{ font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; opacity:0.6; }
+
+  .face-buzzer{ display:flex; align-items:center; gap:14px; }
+  .face-icon{ width:44px; height:44px; transition: transform .2s; }
+  .face-icon.alert{ transform: scale(1.08); }
+
+  .led{
+    width:12px; height:12px; border-radius:50%;
+    background: #d7dfe4;
+    box-shadow: inset 0 0 0 2px rgba(42,47,99,0.15);
+    transition: background .25s, box-shadow .25s;
+  }
+  .led.alert{
+    background: #ff5b5b;
+    box-shadow: 0 0 0 5px rgba(255,91,91,0.22), inset 0 0 0 2px rgba(153,0,0,0.25);
+  }
+
+  .slider-block label{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--heading);
+    opacity:0.75;
+    margin-bottom:10px;
+  }
+  input[type="range"]{
+    -webkit-appearance:none;
+    width:100%;
+    height:6px;
+    border-radius:100px;
+    background: linear-gradient(90deg, var(--card), var(--accent) 30%, var(--heading));
+    outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:26px; height:26px;
+    border-radius:50%;
+    background:var(--white);
+    border:4px solid var(--heading);
+    cursor:pointer;
+    box-shadow: 0 4px 10px rgba(42,47,99,0.3);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--white); border:4px solid var(--heading); cursor:pointer;
+  }
+  .slider-endpoints{
+    display:flex; justify-content:space-between;
+    font-family:var(--font-mono); font-size:10px;
+    color:var(--text); opacity:0.55; margin-top:6px;
+  }
+  .threshold-note{
+    font-size:12.5px; color:var(--text); opacity:0.7;
+    margin-top:14px; padding-top:14px;
+    border-top: 1px dashed rgba(62,109,156,0.25);
+  }
+  .threshold-note strong{ color:var(--heading); }
+
+  /* ---------- STAT CHIPS (problema) ---------- */
+  .stat-row{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin: 22px 0 6px;
+  }
+  .stat-chip{
+    background:var(--card);
+    border-radius:var(--radius-sm);
+    padding:12px 8px;
+    text-align:center;
+  }
+  .stat-chip .num{ font-family:var(--font-mono); font-weight:700; font-size:19px; color:var(--heading); display:block; }
+  .stat-chip .lbl{ font-size:10.5px; opacity:0.75; margin-top:2px; display:block; }
+
+  /* ---------- STEPPER (proceso) ---------- */
+  .stepper{ margin-top:22px; position:relative; }
+  .step{
+    display:flex; gap:16px;
+    position:relative;
+    padding-bottom:26px;
+  }
+  .step:last-child{ padding-bottom:0; }
+  .step-line{
+    position:absolute;
+    left:19px; top:40px; bottom:0;
+    width:2px;
+    background: linear-gradient(180deg, var(--accent), rgba(95,176,201,0.15));
+  }
+  .step:last-child .step-line{ display:none; }
+  .step-num{
+    flex:none;
+    width:40px; height:40px;
+    border-radius:50%;
+    background:var(--heading);
+    color:var(--bg);
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    z-index:1;
+  }
+  .step-body{ padding-top:6px; }
+  .step-body h3{ font-size:16.5px; margin-bottom:4px; color:var(--heading); }
+  .step-body p{ font-size:14px; color:var(--text); opacity:0.85; }
+  .step-body .tag{
+    display:inline-block;
+    font-family:var(--font-mono);
+    font-size:10px;
+    background:var(--card);
+    color:var(--heading);
+    padding:2px 8px;
+    border-radius:6px;
+    margin-top:8px;
+  }
+
+  /* ---------- ACTIVIDAD / PLAYGROUND ---------- */
+  .playground-card{
+    background:var(--white);
+    border-radius:var(--radius-lg);
+    padding:22px 20px;
+    margin-top:20px;
+    border:1px solid rgba(62,109,156,0.14);
+    box-shadow: 0 18px 40px -26px rgba(42,47,99,0.3);
+  }
+  .playground-head{ margin-bottom:16px; }
+  .playground-tag{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.05em;
+    background:var(--card);
+    color:var(--heading);
+    padding:4px 10px;
+    border-radius:100px;
+    display:inline-block;
+  }
+  .playground-head h3{ font-size:19px; margin-top:10px; color:var(--heading); }
+
+  .playground-cta{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    width:100%;
+    background:var(--heading);
+    color:var(--bg);
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:15px;
+    text-decoration:none;
+    padding:15px 18px;
+    border-radius:100px;
+    transition: background .2s, transform .15s;
+  }
+  .playground-cta:hover{ background:#345a80; }
+  .playground-cta:active{ transform:scale(0.98); }
+  .playground-cta svg{ width:19px; height:19px; flex:none; }
+
+  .playground-note{
+    font-size:12.5px;
+    color:var(--text);
+    opacity:0.7;
+    margin-top:12px;
+    text-align:center;
+  }
+
+  .playground-embed{ display:none; }
+  @media (min-width: 760px){
+    .playground-embed{
+      display:block;
+      margin-top:20px;
+      padding-top:18px;
+      border-top:1px dashed rgba(62,109,156,0.25);
+    }
+    .embed-label{
+      display:block;
+      font-family:var(--font-mono);
+      font-size:10.5px;
+      letter-spacing:0.06em;
+      text-transform:uppercase;
+      color:var(--heading);
+      opacity:0.6;
+      margin-bottom:10px;
+    }
+    .playground-embed iframe{
+      width:100%;
+      height:520px;
+      border:0;
+      border-radius:var(--radius-md);
+      background:var(--bg);
+    }
+  }
+
+  /* ---------- HARDWARE ---------- */
+  .chip-card{
+    background: var(--heading);
+    color:var(--bg);
+    border-radius: var(--radius-lg);
+    padding: 24px 20px;
+    margin-top:20px;
+    position:relative;
+    overflow:hidden;
+  }
+  .chip-card h3{
+    color:var(--bg);
+    font-size:20px;
+    margin-bottom:4px;
+  }
+  .chip-card .chip-sub{
+    font-family:var(--font-mono);
+    font-size:11px;
+    opacity:0.75;
+    letter-spacing:0.05em;
+  }
+  .chip-pins{
+    display:flex; gap:5px; margin: 16px 0 18px;
+  }
+  .chip-pins span{
+    flex:1; height:5px; background: rgba(227,246,245,0.35); border-radius:2px;
+  }
+  .spec-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    margin-top:16px;
+  }
+  .spec-item{
+    background: rgba(227,246,245,0.09);
+    border: 1px solid rgba(227,246,245,0.18);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .spec-item .v{ font-family:var(--font-mono); font-weight:700; font-size:15px; display:block; }
+  .spec-item .k{ font-size:11px; opacity:0.75; display:block; margin-top:2px; }
+
+  .mic-note{
+    display:flex; gap:12px; align-items:flex-start;
+    background:var(--card);
+    border-radius:var(--radius-md);
+    padding:16px;
+    margin-top:16px;
+  }
+  .mic-note svg{ flex:none; width:26px; height:26px; color:var(--heading); }
+  .mic-note p{ font-size:13.5px; color:var(--text); }
+  .mic-note strong{ color:var(--heading); }
+
+  /* ---------- CIENCIA ---------- */
+  .acoustic-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    margin: 20px 0 24px;
+  }
+  .acoustic-card{
+    background:var(--white);
+    border: 1px solid rgba(62,109,156,0.14);
+    border-radius:var(--radius-md);
+    padding:14px 14px 16px;
+  }
+  .acoustic-card .ac-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--heading);
+    opacity:0.65;
+  }
+  .acoustic-card h4{ font-family:var(--font-display); font-size:15.5px; color:var(--heading); margin:4px 0 6px; }
+  .acoustic-card p{ font-size:12.5px; opacity:0.85; }
+
+  .science-block{
+    background:var(--card);
+    border-radius:var(--radius-lg);
+    padding:20px;
+    margin-top:6px;
+  }
+  .science-block h3{ font-size:17px; margin-bottom:8px; }
+  .science-block p{ font-size:14px; color:var(--text); margin-bottom:10px; }
+  .science-block p:last-child{ margin-bottom:0; }
+  .pill-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .pill{
+    font-family:var(--font-mono);
+    font-size:11px;
+    background:var(--white);
+    color:var(--heading);
+    padding:5px 10px;
+    border-radius:100px;
+    border:1px solid rgba(62,109,156,0.2);
+  }
+
+  /* ---------- CRÉDITOS / FOOTER ---------- */
+  footer{
+    background:var(--text);
+    color:var(--bg);
+    padding: 44px 22px 30px;
+    margin-top:50px;
+  }
+  footer .foot-inner{ max-width:640px; margin:0 auto; }
+  footer h2{ color:var(--bg); font-size:22px; }
+  footer p{ font-size:13.5px; opacity:0.8; max-width:46ch; margin-top:10px; }
+  .stack-row{ display:flex; flex-wrap:wrap; gap:8px; margin:20px 0 26px; }
+  .stack-row .pill{ background: rgba(227,246,245,0.08); color:var(--bg); border-color: rgba(227,246,245,0.25); }
+  footer .fine{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    opacity:0.55;
+    border-top:1px solid rgba(227,246,245,0.15);
+    padding-top:16px;
+  }
+
+  /* ---------- BOTTOM NAV ---------- */
+  .bottom-nav{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--heading);
+    display:flex;
+    z-index:50;
+    box-shadow: 0 -8px 24px -10px rgba(42,47,99,0.4);
+  }
+  .bottom-nav a{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px;
+    text-decoration:none;
+    color: rgba(227,246,245,0.55);
+    font-family:var(--font-mono);
+    font-size:9.5px;
+    letter-spacing:0.02em;
+    transition: color .2s;
+  }
+  .bottom-nav a svg{ width:21px; height:21px; }
+  .bottom-nav a.active{ color: var(--bg); }
+  .bottom-nav a.active svg{ filter: drop-shadow(0 0 6px rgba(227,246,245,0.5)); }
+  .bottom-nav a:focus-visible{ outline: 2px solid var(--bg); outline-offset: -2px; border-radius:8px; }
+
+  /* Desktop widening (still mobile-first defaults above) */
+  @media (min-width:720px){
+    section{ max-width:720px; }
+    .stat-row{ grid-template-columns: repeat(3,1fr); }
+  }
+
+  a:focus-visible, input:focus-visible{ outline: 2px solid var(--heading); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+<div class="top-strip">Clubes de Ciencias 2026 · Prototipo funcional</div>
+
+<!-- HERO -->
+<section class="hero" id="inicio">
+  <div class="hero-badge"><span class="dot"></span> Detección de enojo mediante voz</div>
+  <h1>Del micrófono al cerebro artificial:
+    <span class="accent-line">¡Jarvis, estoy molesto!</span>
+  </h1>
+  <p class="sub">Un dispositivo de bajo costo que escucha el tono de una voz y reconoce el enojo antes de que se convierta en agresión física.</p>
+
+  <div class="enojometro" aria-label="Demostración interactiva del enojómetro">
+    <div class="enojometro-head">
+      <span class="enojometro-title">Enojómetro — demo</span>
+      <span class="enojometro-badge neutral" id="badge">EN CALMA</span>
+    </div>
+    <div class="wave-wrap">
+      <svg viewBox="0 0 300 84" preserveAspectRatio="none">
+        <path id="wavePath" class="wave-path" d="M0,42 L300,42"></path>
+      </svg>
+    </div>
+    <div class="readout-row">
+      <div>
+        <span class="prob-value" id="probValue">04%</span>
+        <span class="prob-label">Probabilidad de enojo</span>
+      </div>
+      <div class="face-buzzer">
+        <div class="led" id="led" aria-hidden="true"></div>
+        <svg class="face-icon" id="faceIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color:var(--heading)">
+          <circle cx="12" cy="12" r="9.4"></circle>
+          <circle cx="8.6" cy="10" r="1" fill="currentColor" stroke="none"></circle>
+          <circle cx="15.4" cy="10" r="1" fill="currentColor" stroke="none"></circle>
+          <path id="mouthPath" d="M8.3,15 Q12,17.6 15.7,15"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="slider-block">
+      <label for="tone">Simula el tono, volumen y velocidad de una voz</label>
+      <input type="range" id="tone" min="0" max="100" value="8" aria-describedby="probLabel">
+      <div class="slider-endpoints"><span>Voz en calma</span><span>Voz alterada</span></div>
+    </div>
+    <p class="threshold-note">El sistema real activa <strong>LED + buzzer</strong> cuando la CNN a bordo del ESP32 estima una probabilidad de enojo <strong>≥ 30%</strong>. Mueve la barra para ver la respuesta del dispositivo.</p>
+  </div>
+</section>
+
+<!-- PROBLEMA -->
+<section id="problema">
+  <div class="eyebrow">El problema</div>
+  <h2>El enojo verbal antecede a la agresión física</h2>
+  <p class="lead">El objetivo de Jarvis es detectar violencia doméstica verbal a tiempo: el enojo en la voz suele preceder a la violencia física. Los sistemas de detección emocional existentes son costosos, justo lo contrario de lo que necesitan las familias en riesgo, que suelen contar con pocos recursos.</p>
+  <div class="stat-row">
+    <div class="stat-chip"><span class="num">2s</span><span class="lbl">de audio analizado</span></div>
+    <div class="stat-chip"><span class="num">30%</span><span class="lbl">umbral de alerta</span></div>
+    <div class="stat-chip"><span class="num">22KB</span><span class="lbl">pesa el modelo</span></div>
+  </div>
+</section>
+
+<!-- PROCESO -->
+<section id="proceso">
+  <div class="eyebrow">Cómo funciona</div>
+  <h2>Del sonido a la alerta en 6 pasos</h2>
+  <p class="lead">Todo ocurre a bordo del ESP32, sin enviar audio a la nube.</p>
+
+  <div class="stepper">
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Captura</h3>
+        <p>El micrófono INMP441 graba 2 segundos de audio a 16kHz vía protocolo I2S: 32,000 números en total.</p>
+        <span class="tag">INMP441 · I2S</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Normalización</h3>
+        <p>Se aplica pre-énfasis para resaltar los agudos, se filtra el offset (DC) y un detector de voz (VAD) descarta los silencios.</p>
+        <span class="tag">Pre-énfasis · VAD</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Extracción MFCC</h3>
+        <p>Ventaneo Hamming, FFT, filtros Mel, logaritmo y DCT calculan la "huella digital" del audio: una matriz de 20×63.</p>
+        <span class="tag">MFCC 20×63</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>Cuantización</h3>
+        <p>Los 1,260 valores en punto flotante se comprimen a enteros de 8 bits (int8), para que quepan y corran en el microcontrolador.</p>
+        <span class="tag">float32 → int8</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h3>Inferencia CNN</h3>
+        <p>MicroLightCNN procesa la matriz con 3 bloques Conv2D + BatchNorm + ReLU + Pooling, luego Flatten, L2-Norm y una capa densa con salida Sigmoid. Tiempo total: ~219ms.</p>
+        <span class="tag">MicroLightCNN · 219ms</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h3>Salida</h3>
+        <p>Si la probabilidad es ≥30%, suena el buzzer y el LED muestra una cara enojada; si no, se mantiene neutral. Todo se refleja en un dashboard por Serial Monitor.</p>
+        <span class="tag">LED + Buzzer</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACTIVIDAD INTERACTIVA -->
+<section id="actividad">
+  <div class="eyebrow">Actividad interactiva</div>
+  <h2>Entrena tú una red neuronal</h2>
+  <p class="lead">MicroLightCNN es, en el fondo, una red de neuronas que aprende ajustando pesos. Pruébalo tú mismo en el Neural Network Playground de TensorFlow: cambia capas, activación y ruido, y observa en tiempo real cómo la red aprende a separar los datos.</p>
+
+  <div class="playground-card">
+    <div class="playground-head">
+      <span class="playground-tag">circle · tanh · capas 4-2</span>
+      <h3>TensorFlow Playground</h3>
+    </div>
+    <a class="playground-cta" id="playgroundLink"
+       href="https://playground.tensorflow.org/#activation=tanh&batchSize=10&dataset=circle&regDataset=reg-plane&learningRate=0.03&regularizationRate=0&noise=0&networkShape=4,2&seed=0.39600&showTestData=false&discretize=false&percTrainData=50&x=true&y=true&xTimesY=false&xSquared=false&ySquared=false&cosX=false&sinX=false&cosY=false&sinY=false&collectStats=false&problem=classification&initZero=false&hideText=false"
+       target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+      Abrir Playground en pantalla completa
+    </a>
+    <p class="playground-note">Se abre en una pestaña nueva con la configuración ya lista para experimentar — funciona mejor a pantalla completa, así que en el celular es la mejor forma de usarlo.</p>
+
+    <div class="playground-embed" aria-hidden="true">
+      <span class="embed-label">Vista previa (solo en pantallas grandes)</span>
+      <iframe
+        src="https://playground.tensorflow.org/#activation=tanh&batchSize=10&dataset=circle&regDataset=reg-plane&learningRate=0.03&regularizationRate=0&noise=0&networkShape=4,2&seed=0.39600&showTestData=false&discretize=false&percTrainData=50&x=true&y=true&xTimesY=false&xSquared=false&ySquared=false&cosX=false&sinX=false&cosY=false&sinY=false&collectStats=false&problem=classification&initZero=false&hideText=false"
+        loading="lazy"
+        title="TensorFlow Neural Network Playground"
+        referrerpolicy="no-referrer-when-downgrade">
+      </iframe>
+    </div>
+  </div>
+</section>
+
+<!-- HARDWARE -->
+<section id="hardware">
+  <div class="eyebrow">El cerebro del dispositivo</div>
+  <h2>ESP32-S3-N16R8</h2>
+  <p class="lead">Un microcontrolador del tamaño de una moneda que corre inteligencia artificial en tiempo real, sin pantalla ni teclado.</p>
+
+  <div class="chip-card">
+    <h3>ESP32-S3-N16R8</h3>
+    <span class="chip-sub">Xtensa LX7 · Wi-Fi + Bluetooth</span>
+    <div class="chip-pins" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="spec-grid">
+      <div class="spec-item"><span class="v">0.2W</span><span class="k">consumo energético</span></div>
+      <div class="spec-item"><span class="v">16MB</span><span class="k">flash (N16) — guarda el modelo</span></div>
+      <div class="spec-item"><span class="v">8MB</span><span class="k">PSRAM (R8) — cálculos rápidos</span></div>
+      <div class="spec-item"><span class="v">45</span><span class="k">pines GPIO</span></div>
+      <div class="spec-item"><span class="v">22KB</span><span class="k">peso del modelo MicroLightCNN</span></div>
+      <div class="spec-item"><span class="v">Bajo</span><span class="k">costo de fabricación</span></div>
+    </div>
+  </div>
+
+  <div class="mic-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/></svg>
+    <p><strong>Micrófono INMP441:</strong> capta el audio en formato digital I2S, listo para el pipeline de procesamiento — sin necesidad de un conversor analógico externo.</p>
+  </div>
+</section>
+
+<!-- CIENCIA -->
+<section id="ciencia">
+  <div class="eyebrow">La ciencia detrás</div>
+  <h2>Cómputo afectivo y voz humana</h2>
+  <p class="lead">El cómputo afectivo es el área de la IA que estudia cómo las máquinas reconocen emociones humanas, interpretan su significado y responden de forma apropiada — usando micrófonos, cámaras, pulseras o electroencefalografía.</p>
+
+  <div class="acoustic-grid">
+    <div class="acoustic-card">
+      <span class="ac-label">Tono</span>
+      <h4>Frecuencia</h4>
+      <p>En el enojo es alto y variable.</p>
+    </div>
+    <div class="acoustic-card">
+      <span class="ac-label">Volumen</span>
+      <h4>Intensidad</h4>
+      <p>En el enojo es alto.</p>
+    </div>
+    <div class="acoustic-card">
+      <span class="ac-label">Velocidad</span>
+      <h4>Ritmo del habla</h4>
+      <p>En el enojo es rápida y entrecortada.</p>
+    </div>
+    <div class="acoustic-card">
+      <span class="ac-label">Timbre</span>
+      <h4>Color de la voz</h4>
+      <p>En el enojo es áspero y tenso.</p>
+    </div>
+  </div>
+
+  <div class="science-block">
+    <h3>¿Por qué la voz y no la cámara?</h3>
+    <p>De los cuatro tipos de detección emocional — facial, fisiológica, de texto y de voz — la voz es la menos invasiva: no necesita contacto físico ni una cámara apuntando a la persona.</p>
+    <p>Las 6 emociones básicas universales fueron descritas por Paul Ekman. Jarvis entrena con el <em>Emotional Speech Dataset</em> (Zhou et al., 2022), un repositorio público con variabilidad léxica, lingüística y de hablantes distintos.</p>
+    <div class="pill-row">
+      <span class="pill">Ekman · 6 emociones</span>
+      <span class="pill">Dataset ESD (2022)</span>
+      <span class="pill">MFCC = huella digital del audio</span>
+    </div>
+  </div>
+</section>
+
+<footer id="creditos">
+  <div class="foot-inner">
+    <h2>Créditos</h2>
+    <p>Jarvis fue desarrollado durante la Semana de los Clubes de Ciencias 2026, como una exploración de cómputo afectivo y sistemas embebidos aplicados a la prevención de la violencia doméstica.</p>
+    <div class="stack-row">
+      <span class="pill">ESP32-S3-N16R8</span>
+      <span class="pill">INMP441</span>
+      <span class="pill">MicroLightCNN</span>
+      <span class="pill">MFCC</span>
+      <span class="pill">Dataset ESD</span>
+    </div>
+    <p class="fine">© 2026 Proyecto Jarvis — Clubes de Ciencias. Prototipo educativo, no es un dispositivo médico ni de seguridad certificado.</p>
+  </div>
+</footer>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav" aria-label="Navegación principal">
+  <a href="#inicio" data-section="inicio" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 9.7V20h13V9.7"/><path d="M9.5 20v-6h5v6"/></svg>
+    Inicio
+  </a>
+  <a href="#problema" data-section="problema">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20.5s-7.5-4.6-9.7-9A5.4 5.4 0 0 1 12 6.3a5.4 5.4 0 0 1 9.7 5.2c-2.2 4.4-9.7 9-9.7 9Z"/><path d="M9.5 11.2 11.3 13l1.6-2.6 1.4 2 1.7-2.4"/></svg>
+    Problema
+  </a>
+  <a href="#proceso" data-section="proceso">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>
+    Proceso
+  </a>
+  <a href="#hardware" data-section="hardware">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="7" width="10" height="10" rx="1.4"/><path d="M9.5 3.5v3M14.5 3.5v3M9.5 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 14.5h3M17.5 9.5h3M17.5 14.5h3"/></svg>
+    Hardware
+  </a>
+  <a href="#ciencia" data-section="ciencia">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9.5 3.5h5M10.2 3.5v5.3L5.8 17a2 2 0 0 0 1.8 2.9h8.8a2 2 0 0 0 1.8-2.9l-4.4-8.2V3.5"/><path d="M8.2 14.5h7.6"/></svg>
+    Ciencia
+  </a>
+</nav>
+
+<script>
+(function(){
+  // ---- Enojómetro interactivo ----
+  var slider = document.getElementById('tone');
+  var wavePath = document.getElementById('wavePath');
+  var probValue = document.getElementById('probValue');
+  var badge = document.getElementById('badge');
+  var led = document.getElementById('led');
+  var faceIcon = document.getElementById('faceIcon');
+  var mouthPath = document.getElementById('mouthPath');
+  var THRESHOLD = 30;
+
+  function drawWave(amp, freq){
+    var pts = [];
+    var w = 300, h = 84, mid = h/2;
+    var steps = 60;
+    for(var i=0;i<=steps;i++){
+      var x = (w/steps)*i;
+      var t = (i/steps) * Math.PI * 2 * freq;
+      var jitter = amp > 4 ? (Math.random()-0.5) * amp * 0.35 : 0;
+      var y = mid + Math.sin(t) * amp + jitter;
+      pts.push(x.toFixed(1)+","+y.toFixed(1));
+    }
+    wavePath.setAttribute('d', 'M' + pts.join(' L'));
+  }
+
+  function update(){
+    var v = parseInt(slider.value, 10);
+    var amp = 4 + (v/100) * 30;
+    var freq = 1.5 + (v/100) * 7;
+    drawWave(amp, freq);
+
+    var pct = Math.min(99, Math.max(1, Math.round(v * 0.97) + (v>0?2:0)));
+    probValue.textContent = String(pct).padStart(2,'0') + '%';
+
+    var alert = pct >= THRESHOLD;
+    wavePath.classList.toggle('alert', alert);
+    probValue.classList.toggle('alert', alert);
+    led.classList.toggle('alert', alert);
+    faceIcon.classList.toggle('alert', alert);
+    badge.textContent = alert ? 'ENOJO DETECTADO' : 'EN CALMA';
+    badge.classList.toggle('alert', alert);
+    badge.classList.toggle('neutral', !alert);
+    faceIcon.style.color = alert ? 'var(--heading)' : 'var(--heading)';
+    mouthPath.setAttribute('d', alert ? 'M8.3,16.6 Q12,14 15.7,16.6' : 'M8.3,15 Q12,17.6 15.7,15');
+  }
+
+  slider.addEventListener('input', update);
+  update();
+
+  // idle ambient motion when untouched
+  var idleTimer = null;
+  function ambientPulse(){
+    if(document.activeElement === slider) return;
+    var base = parseInt(slider.value,10);
+    var amp = 3 + (base/100)*4;
+    drawWave(amp, 1.6);
+  }
+  setInterval(ambientPulse, 1400);
+
+  // ---- Bottom nav active state via scroll ----
+  var sections = ['inicio','problema','proceso','hardware','ciencia'].map(function(id){
+    return document.getElementById(id);
+  });
+  var navLinks = document.querySelectorAll('.bottom-nav a');
+
+  var observer = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        var id = entry.target.id;
+        navLinks.forEach(function(link){
+          link.classList.toggle('active', link.getAttribute('data-section') === id);
+        });
+      }
+    });
+  }, { rootMargin: '-40% 0px -50% 0px', threshold: 0 });
+
+  sections.forEach(function(sec){ if(sec) observer.observe(sec); });
+})();
+</script>
+
+</body>
+</html>
